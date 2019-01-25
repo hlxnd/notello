@@ -14,6 +14,27 @@ QUnit.test( "noten.parseNote", function( assert ) {
     assert.equal(noten.parseNote("8+"),null);
 });
 
+QUnit.test("noten.parseFloatToNote", function( assert ) {
+
+    let subtest = (t,r) => assert.equal(noten.parseFloatToNote(t),r,t+"->"+r);
+
+    subtest(2.5,"2-3");
+    subtest(2.6,"2-3");
+    subtest(2.4,"2-3");
+    subtest(2.3,"2-");
+    subtest(2.2,"2-");
+    subtest(2.1,"2");
+    subtest(2.0,"2");
+    subtest(1.9,"2");
+    subtest(1,"1");
+    subtest(1.2,"1-");
+    subtest(3.25,"3-");
+    subtest(2.7,"3+");
+    subtest(2.8,"3+");
+    subtest(2.9,"3");
+    subtest(5,"5");
+});
+
 QUnit.test( "noten.isEmptyCol", function( assert ) {
     let data = [[0,1,2,'',4],
     [0,1,2,'',4],
@@ -60,7 +81,13 @@ QUnit.test( "noten.addEmptyColIfNeeded", function( assert ) {
 // }
 
 QUnit.test( "noten.makeExamRow", function( assert ) {
-    assert.deepEqual(noten.makeExamRow(['A','A','D','C']),['Exams','A','A','D','C','<A>','<D>','<C>','<*>']);
+    assert.deepEqual(noten.makeExamRow({name: '1d', exams: ['A','A','D','C']}),
+        ['1d','A','A','D','C',"[A]",'[D]','[C]','[M]','[N]']);
+});
+
+QUnit.test("noten.addExam", function( assert ) {
+    let backendData={exams: ['A','B','C']};
+    assert.deepEqual(noten.addExam(backendData),{exams: ['A','B','C','']});
 });
 
 QUnit.test( "noten.makeGradeRows", function( assert ) {
@@ -70,18 +97,17 @@ QUnit.test( "noten.makeGradeRows", function( assert ) {
             {id: "D", weight: 20},
             {id: "C", weight: 30},
         ],
-        students: ['A','B','C'],
         exams: ['A','A','D','C'],
         marks: [
-            {student: 0, grades: ['5+','5+','5+','5+','5+']},
-            {student: 1, grades: ['5+','5+','5+','5+','5+']},
-            {student: 2, grades: ['5+','5+','5+','5+','5+']},
+            {student: "A", grades: ['5+','5+','5+','5+','5+']},
+            {student: "B", grades: ['5+','5+','5+','','5+']},
+            {student: "C", grades: ['5+','','5+','5+','5+']},
         ]
     };
     assert.deepEqual(noten.makeGradeRows(data),
-        [['A','5+','5+','5+','5+','4.75','4.75','4.75','4.75'],
-         ['B','5+','5+','5+','5+','4.75','4.75','4.75','4.75'],
-         ['C','5+','5+','5+','5+','4.75','4.75','4.75','4.75']]);
+        [['A','5+','5+','5+','5+','4.75','4.75','4.75','4.75','5+'],
+         ['B','5+','5+','5+','','4.75','4.75','','4.75','5+'],
+         ['C','5+','','5+','5+','4.75','4.75','4.75','4.75','5+']]);
 });
 
 QUnit.test("noten.getWeightByExamTypeName", function( assert ) {
@@ -104,22 +130,42 @@ QUnit.test("noten.makeDisplayData", function( assert ) {
             {id: "TE", weight: 1},
             {id: "KA", weight: 2},
         ],
-        students: ["Alex","Arne","Anne"],
         exams: ["TE","TE","MÜ","TE","KA"],
         marks: [
-            {student: 0, grades: ['5+','5+','5+','5+','5+']},
-            {student: 1, grades: ['5+','5+','5+','5+','5+']},
-            {student: 2, grades: ['5+','5+','5+','5+','5+']},
+            {student: "Alex", grades: ['5+','5+','5+','5+','5+']},
+            {student: "Arne", grades: ['5+','5+','5+','5+','5+']},
+            {student: "Anne", grades: ['5+','5+','5+','5+','5+']},
         ]
     };
 
     let frontendData=[[]];
 
     assert.deepEqual(noten.makeDisplayData(frontendData,klasse),
-        [["Exams","TE","TE","MÜ","TE","KA","<TE>","<MÜ>","<KA>","<*>"],
-         ["Alex",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75'],
-         ["Arne",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75'],
-         ["Anne",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75']]);
+        [["6d","TE","TE","MÜ","TE","KA","[TE]","[MÜ]","[KA]","[M]","[N]"],
+         ["Alex",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75','5+'],
+         ["Arne",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75','5+'],
+         ["Anne",'5+','5+','5+','5+','5+','4.75','4.75','4.75','4.75','5+']]);
+});
+
+QUnit.test("noten.makeDisplayData 2", function( assert ) {
+    var backendData_= {
+        name: "6d",
+        examTypes: [
+            {id: "MÜ", weight: 2},
+            {id: "TE", weight: 1},
+            {id: "KA", weight: 2},
+        ],
+        exams: ["TE","TE"],
+        marks: [
+            {student: "Student 1", grades: []}
+        ]
+    };
+
+    let frontendData=[[]];
+
+    assert.deepEqual(noten.makeDisplayData(frontendData,backendData_),
+        [["6d","TE","TE","[TE]","[M]","[N]"],
+         ["Student 1",'','','','','']]);
 });
 
 
@@ -133,18 +179,17 @@ QUnit.test("noten.resyncBackend", function( assert ) {
             {id: "TE", weight: 1},
             {id: "KA", weight: 2},
         ],
-        students: ["Alex","Arne","Anne"],
         exams: ["TE","TE","MÜ","TE","KA"],
         marks: [
-            {student: 0, grades: ['5+','5+','5+','5+','5+']},
-            {student: 1, grades: ['5+','5+','5+','5+','5+']},
-            {student: 2, grades: ['5+','5+','5+','5+','5+']},
+            {student: "Alex", grades: ['5+','5+','5+','5+','5+']},
+            {student: "Arne", grades: ['5+','5+','5+','5+','5+']},
+            {student: "Mike", grades: ['5+','5+','5+','5+','5+']},
         ]
     };
 
     frontendData = [
-        ["Exams","TE","KA","KA","<>","<>","<>"],
-        ["Sven","4+","3-","1-","","",""]
+        ["6d","TE","KA","KA","[TE]","[KA]","[M]","[N]"],
+        ["Sven","4+","3-","1-","","","",""]
     ]
 
     noten.resyncBackend(frontendData,backendData_);
@@ -156,10 +201,9 @@ QUnit.test("noten.resyncBackend", function( assert ) {
             {id: "TE", weight: 1},
             {id: "KA", weight: 2},
         ],
-        students: ["Sven"],
         exams: ["TE","KA","KA"],
         marks: [
-            {student: 0, grades: ['4+','3-','1-']},
+            {student: "Sven", grades: ['4+','3-','1-']},
         ]
     };
 

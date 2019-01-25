@@ -3,12 +3,11 @@ var noten = {
     resyncBackend(frontendData,backendData) {
 
         //try {
-            backendData.students=frontendData.slice(1).map(x=>x[0]);
             backendData.exams=frontendData[0]
                 .slice(1)
-                .filter((v,i,a) => v.substr(0,1)!=="<");
+                .filter((v,i,a) => v.substr(0,1)!=="[");
             backendData.marks=frontendData.slice(1).map(
-                (v,i,a) => { return { student: i, 
+                (v,i,a) => { return { student: v[0], 
                     grades: v.slice(1,backendData.exams.length+1)};
                 });
             this.makeDisplayData(frontendData,backendData);
@@ -19,7 +18,7 @@ var noten = {
     },
 
     makeDisplayData(frontendData,backendData) {
-        frontendData.splice(0,null,this.makeExamRow(backendData.exams))
+        frontendData.splice(0,null,this.makeExamRow(backendData))
         let gradeRows=this.makeGradeRows(backendData);
         gradeRows.map((v,i,a) => {
             frontendData.splice(i+1,null,v);
@@ -28,44 +27,70 @@ var noten = {
         return frontendData;
     },
     
-    makeExamRow(exams) {
-        var unique = exams.filter((v, i, a) => a.indexOf(v) === i);
+    makeExamRow(backendData) {
+        var unique = backendData.exams.filter((v, i, a) => a.indexOf(v) === i);
 
-        return ["Exams"]
-            .concat(exams)
-            .concat(unique.map(s=>'<'+s.trim()+'>'))
-            .concat('<*>');
+        return [backendData.name]
+            .concat(backendData.exams)
+            .concat(unique.filter(v=>v.toString().trim()!=='').map(s=>'['+s.trim()+']'))
+            .concat('[M]')
+            .concat('[N]');
     },
 
     makeGradeRows(data) {
         return data.marks.map(x => {
             // Student name
-            let gradeRow = [(data.students[x.student])];
+            let gradeRow = [x.student];
             let unique = data.exams.filter((v, i, a) => a.indexOf(v) === i);
+            // Fix length of grades
+            for (let i=x.grades.length;i<data.exams.length;i++)
+                x.grades.push('');
             let marks = x.grades.slice(0,data.exams.length);
+            
             gradeRow = gradeRow.concat(marks);
 
             let averageByExamType = 
                 unique.map(examTypeName=>{
                     let sum=x.grades.slice(0,data.exams.length).filter((v,i,a) => 
                         examTypeName===data.exams[i]).reduce((a, b) => this.parseNote(a) + this.parseNote(b), 0);
-                    let count=data.exams.filter((v,i,a)=>v===examTypeName).length;
-                    return (sum/count).toString();
+                    console.log(x.grades);
+                    console.log(data.exams);
+                    let count=data.exams.filter((v,i,a)=> (v===examTypeName) && (x.grades[i].toString().trim()!="") ).length;
+                    if (count>0)
+                        return (sum/count).toFixed(2).toString();
+                    else 
+                        return '';
                 });
             gradeRow = gradeRow.concat(averageByExamType);
 
             let grandSum = averageByExamType
                 .map((v,i,a) => this.parseNote(v) * this.getWeightByExamTypeName(data.examTypes,unique[i]))
                 .reduce((a, b) => a + b, 0);
-            let grandWeightCount = data.exams
-                .map((v,i,a)=>this.getWeightByExamTypeName(data.examTypes,unique[i]))
+            //console.log(averageByExamType)
+
+            let grandWeightCount = unique
+                .map((v,i,a)=>(averageByExamType[i].trim()==''?0:1)*this.getWeightByExamTypeName(data.examTypes,unique[i]))
                 .reduce((a, b) => a + b, 0);
 
-            let grandAverage = grandSum/grandWeightCount;
-            gradeRow.push(grandAverage.toString());
-            
+            console.log(gradeRow);
+
+            if ((grandSum!='')&&(grandWeightCount>0)) {
+                let grandAverage=grandSum/grandWeightCount;
+                gradeRow.push(grandAverage.toFixed(2).toString());
+                gradeRow.push(noten.parseFloatToNote(grandAverage));
+            }
+            else {
+                gradeRow.push('');
+                gradeRow.push('');
+            }
+                       
             return gradeRow;
         });
+    },
+
+    addExam(backendData) {
+        backendData.exams.push('');
+        return backendData;
     },
 
     getWeightByExamTypeName(examTypes, name) {
@@ -76,7 +101,6 @@ var noten = {
             return 0;
     },
     
-
     /// Transform a note entry to a numerical value
     parseNote: (note) => {
         let val=null;
@@ -99,6 +123,21 @@ var noten = {
             }
         }
         return val;
+    },
+
+    parseFloatToNote(floatNote) {
+        let integer=Math.floor(floatNote+(0.25+0.5)/2);
+        let decimal=floatNote-Math.floor(floatNote);
+        let stringNote=integer.toString();
+
+        if (decimal<=(0+0.25)/2) {} // do nothing
+        else if (decimal<=(0.25+0.5)/2)
+            stringNote+="-";
+        else if (decimal<=(0.5+0.75)/2)
+            stringNote+="-"+(integer+1).toString();
+        else if (decimal<=(0.75+1)/2)
+            stringNote+="+";
+        return stringNote;
     },
 
     isEmptyCol: (data, colindex) => {
